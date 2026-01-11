@@ -51,14 +51,16 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # sidebar API Key (Hidden/Backend)
-if "GEMINI_API_KEY" not in os.environ and not st.secrets.get("GEMINI_API_KEY"):
-    # Fallback to a hardcoded check or manual ephemeral input if absolutely needed, 
-    # but user requested backend. We assume it's exported in shell.
-    pass 
+# sidebar API Key (Hidden/Backend)
+api_key = os.environ.get("GEMINI_API_KEY")
+if not api_key and "GEMINI_API_KEY" in st.secrets:
+    api_key = st.secrets["GEMINI_API_KEY"]
+
+if api_key:
+    configure_genai(api_key)
 else:
-    # Ensure it is configured if env var exists
-    if "GEMINI_API_KEY" in os.environ:
-        configure_genai(os.environ["GEMINI_API_KEY"])
+    # No key found in env or secrets
+    pass
 
 # --- SIDEBAR ---
 with st.sidebar:
@@ -223,7 +225,8 @@ with tab2:
         submit_btn = st.button("Run AI Screening ✨", type="primary", use_container_width=True)
     
     if submit_btn:
-        if "GEMINI_API_KEY" not in os.environ:
+        # Check if key is available (Env or Secrets)
+        if not os.environ.get("GEMINI_API_KEY") and not st.secrets.get("GEMINI_API_KEY"):
             st.error("⚠️ Backend API Key not configured.")
         else:
             patient_data = {
@@ -275,7 +278,7 @@ with tab3:
         st.dataframe(df_upload.head(), use_container_width=True)
         
         if st.button("Start Batch Screening", type="primary"):
-            if "GEMINI_API_KEY" not in os.environ:
+            if not os.environ.get("GEMINI_API_KEY") and not st.secrets.get("GEMINI_API_KEY"):
                 st.error("API Key required in backend.")
             else:
                 st.write("Processing...")
