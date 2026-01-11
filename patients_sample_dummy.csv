@@ -1,0 +1,4 @@
+patient_id,age,gender,hba1c,egfr,insulin_user,current_medications,comorbidities
+P_DUMMY_001,55,M,8.5,80.0,false,"Metformin; Aspirin","Type 2 Diabetes; Hypertension"
+P_DUMMY_002,65,F,6.5,45.0,true,"Insulin; Lisinopril","Type 2 Diabetes; CKD Stage 3"
+P_DUMMY_003,42,F,9.2,95.0,false,"Metformin; Atorvastatin","Type 2 Diabetes; Hyperlipidemia"

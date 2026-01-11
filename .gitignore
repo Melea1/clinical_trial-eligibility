@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.pyc
+
+# Environment & Secrets
+.env
+*.key
+
+# Data (Protect Patient Privacy!)
+# *.csv  <-- Commented out for private repo usage as per user request
+# !patients_sample_dummy.csv
+dm2_final_flat_*.csv
+
+# System
+.DS_Store
