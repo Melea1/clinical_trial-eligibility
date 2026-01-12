@@ -228,7 +228,10 @@ with tab2:
         p_gender = c2.selectbox("Gender", ["M", "F"])
         p_hba1c = c3.number_input("HbA1c (%)", 4.0, 15.0, 7.5)
         
-        p_insulin = st.toggle("Uses Insulin?", value=False)
+        c_in, c_preg = st.columns(2)
+        p_insulin = c_in.toggle("Uses Insulin?", value=False)
+        p_pregnant = c_preg.checkbox("Pregnant?")
+        
         p_meds = st.text_input("Medications", "Metformin, Lisinopril")
         p_conditions = st.text_area("Comorbidities", "Type 2 Diabetes, Hypertension, Hyperlipidemia")
         
@@ -242,7 +245,7 @@ with tab2:
             patient_data = {
                 "age": p_age, "gender": p_gender, "hba1c": p_hba1c,
                 "current_medications": p_meds, "comorbidities": p_conditions,
-                "insulin_user": p_insulin
+                "insulin_user": p_insulin, "is_pregnant": p_pregnant
             }
             
             trial_path = os.path.join('trials', f"{selected_manual_trial}.md")
