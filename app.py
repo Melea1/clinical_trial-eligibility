@@ -329,4 +329,3 @@ with tab4:
                 with open(os.path.join('trials', f"{safe}.md"), 'w') as f: f.write(n_text)
                 st.success("Saved!")
                 st.rerun()
-```
