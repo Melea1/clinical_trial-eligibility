@@ -178,6 +178,16 @@ with tab1:
                     st.markdown("**💊 Medications**")
                     st.caption(str(pat_row['current_medications']).replace(';', ', '))
                     
+                    # Pregnancy Check (Explicit Display)
+                    diag_full = (str(pat_row.get('comorbidities', '')) + " " + str(pat_row.get('diagnoses', ''))).lower()
+                    is_pregnant = any(x in diag_full for x in ['pregn', 'gestat'])
+                    
+                    st.markdown("**🤰 Pregnancy Status**")
+                    if is_pregnant:
+                        st.error("⚠️ DETECTED (Exclusion Risk)")
+                    else:
+                        st.caption("✅ Not Detected")
+
                     st.markdown("**🩺 Comorbidities**")
                     st.caption(str(pat_row['comorbidities']).replace(';', ', '))
                 else:
@@ -319,3 +329,4 @@ with tab4:
                 with open(os.path.join('trials', f"{safe}.md"), 'w') as f: f.write(n_text)
                 st.success("Saved!")
                 st.rerun()
+```
