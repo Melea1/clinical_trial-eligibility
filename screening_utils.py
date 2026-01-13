@@ -38,19 +38,19 @@ def screen_patient(patient_data, trial_text, model_name='gemini-2.0-flash'):
     {json.dumps(patient_data, indent=2)}
 
     ## INSTRUCTIONS
-    1. Compare the patient data against the inclusion and exclusion criteria.
-    2. Think step-by-step for each criterion.
-    3. Output your final decision in strict JSON format.
-
+    1. Compare the patient data against criteria.
+    2. Do NOT explain step-by-step.
+    3. Output ONLY strict JSON.
+    
     ## JSON OUTPUT FORMAT
     {{
       "decision": "ELIGIBLE" | "INELIGIBLE" | "UNCERTAIN",
       "reason": "Overall summary of the decision.",
-      "inclusion_criteria_met": ["List of inclusion criteria specific to this trial that the patient MEETS"],
-      "inclusion_criteria_not_met": ["List of inclusion criteria specific to this trial that the patient does NOT meet"],
-      "exclusion_criteria_met": ["List of exclusion criteria specific to this trial that the patient MEETS (bad)"],
-      "exclusion_criteria_not_met": ["List of exclusion criteria specific to this trial that the patient does NOT meet (good)"],
-      "missing_info": ["List of missing data points helpful for decision, if any"]
+      "inclusion_criteria_met": ["list of strings"],
+      "inclusion_criteria_not_met": ["list of strings"],
+      "exclusion_criteria_met": ["list of strings (bad)"],
+      "exclusion_criteria_not_met": ["list of strings (good)"],
+      "missing_info": ["list of strings"]
     }}
     """
     
@@ -58,13 +58,52 @@ def screen_patient(patient_data, trial_text, model_name='gemini-2.0-flash'):
         response = model.generate_content(prompt)
         text_resp = response.text
         
-        # Robust JSON extraction
-        match = re.search(r'\{.*\}', text_resp, re.DOTALL)
-        if match:
-            json_str = match.group(0)
-            return json.loads(json_str)
+        # 1. Advanced JSON Extraction
+        json_str = ""
+        # Try finding code block first
+        code_block = re.search(r'```json\s*(\{.*?\})\s*```', text_resp, re.DOTALL)
+        if code_block:
+            json_str = code_block.group(1)
         else:
+            # Fallback to brace matching
+            match = re.search(r'\{.*\}', text_resp, re.DOTALL)
+            if match:
+                json_str = match.group(0)
+        
+        if not json_str:
             return {"decision": "ERROR", "reason": "No JSON found in response", "missing_info": []}
+
+        # 2. Parse & Validate Structure
+        data = json.loads(json_str)
+        
+        # Ensure strict keys exist with defaults
+        final_res = {
+            "decision": str(data.get("decision", "ERROR")).upper(),
+            "reason": str(data.get("reason", "Unknown reason")),
+            "inclusion_criteria_met": list(data.get("inclusion_criteria_met", [])),
+            "inclusion_criteria_not_met": list(data.get("inclusion_criteria_not_met", [])),
+            "exclusion_criteria_met": list(data.get("exclusion_criteria_met", [])),
+            "exclusion_criteria_not_met": list(data.get("exclusion_criteria_not_met", [])),
+            "missing_info": list(data.get("missing_info", []))
+        }
+        
+        # 3. Sanitary Logic Overrides (Automated Quality Control)
+        # Rule A: If any exclusion is met, patient MUST be INELIGIBLE
+        if final_res["exclusion_criteria_met"] and final_res["decision"] == "ELIGIBLE":
+            final_res["decision"] = "INELIGIBLE"
+            final_res["reason"] = "[AUTO-CORRECT] Found met exclusion criteria. " + final_res["reason"]
+            
+        # Rule B: If any inclusion is NOT met, patient MUST be INELIGIBLE
+        if final_res["inclusion_criteria_not_met"] and final_res["decision"] == "ELIGIBLE":
+            final_res["decision"] = "INELIGIBLE"
+            final_res["reason"] = "[AUTO-CORRECT] Found unmet inclusion criteria. " + final_res["reason"]
+            
+        # Rule C: If missing info and currently marked Eligible, downgrade to UNCERTAIN
+        if final_res["missing_info"] and final_res["decision"] == "ELIGIBLE":
+            final_res["decision"] = "UNCERTAIN"
+            final_res["reason"] = "[AUTO-CORRECT] Missing critical info. " + final_res["reason"]
+
+        return final_res
             
     except Exception as e:
         return {"decision": "ERROR", "reason": str(e), "missing_info": []}

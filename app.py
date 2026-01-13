@@ -195,7 +195,7 @@ with tab1:
                 st.markdown("</div>", unsafe_allow_html=True)
 
             with c_analysis:
-                st.markdown("#### � AI Screening Analysis")
+                st.markdown("#### 🤖 AI Screening Analysis")
                 pat_data = filtered_df[filtered_df['patient_id'] == selected_patient]
                 
                 for i, row in pat_data.iterrows():
@@ -284,31 +284,90 @@ with tab2:
 # --- TAB 3: UPLOAD BATCH ---
 with tab3:
     st.markdown("### 📂 Batch Processing")
+    
+    # 1. Select Protocol for Batch
+    batch_trial_select = st.selectbox("Select Protocol for Batch Run", trial_names, key="batch_trial_select")
+    
     uploaded_file = st.file_uploader("Drop patient CSV here", type=['csv'])
     
     if uploaded_file:
         df_upload = pd.read_csv(uploaded_file)
+        
+        # 2. Clear Preview Header
+        st.markdown(f"**Preview of uploaded data ({len(df_upload)} rows total) - Showing first 5**:S")
         st.dataframe(df_upload.head(), use_container_width=True)
         
         if st.button("Start Batch Screening", type="primary"):
             if not os.environ.get("GEMINI_API_KEY") and not st.secrets.get("GEMINI_API_KEY"):
                 st.error("API Key required in backend.")
             else:
-                st.write("Processing...")
-                
-                results_batch = []
-                target_trial_name = trial_names[0]
-                target_trial_path = os.path.join('trials', f"{target_trial_name}.md")
+                target_trial_path = os.path.join('trials', f"{batch_trial_select}.md")
                 with open(target_trial_path, 'r') as f: batch_trial_text = f.read()
                 
-                prog = st.progress(0)
-                for i, row in df_upload.iterrows():
-                    res = screen_patient(row.to_dict(), batch_trial_text)
-                    results_batch.append({"id": i, "decision": res.get("decision"), "reason": res.get("reason")})
-                    prog.progress((i+1)/len(df_upload))
+                # 3. Progress Tracking
+                prog_bar = st.progress(0)
+                status_text = st.empty()
+                results_batch = []
+                failures = 0
                 
-                res_df = pd.DataFrame(results_batch)
-                st.dataframe(res_df, use_container_width=True)
+                total_rows = len(df_upload)
+                
+                for i, row in df_upload.iterrows():
+                    # Update status
+                    status_text.caption(f"Processing row {i+1}/{total_rows} • Failures: {failures}")
+                    
+                    try:
+                        pat_dict = row.to_dict()
+                        # Ensure ID is string to match system
+                        pat_dict['patient_id'] = str(pat_dict.get('patient_id', f'BATCH_{i}'))
+                        
+                        res = screen_patient(pat_dict, batch_trial_text)
+                        
+                        results_batch.append({
+                            "patient_id": pat_dict['patient_id'],
+                            "trial_name": batch_trial_select,
+                            "decision": res.get("decision", "ERROR"),
+                            "reason": res.get("reason", "Unknown error"),
+                            "missing_info": str(res.get("missing_info", []))
+                        })
+                    except Exception as e:
+                        failures += 1
+                        results_batch.append({
+                            "patient_id": str(row.get('patient_id', f'ERR_{i}')),
+                            "trial_name": batch_trial_select,
+                            "decision": "ERROR",
+                            "reason": f"System Crash: {str(e)}",
+                            "missing_info": "[]"
+                        })
+                        
+                    prog_bar.progress((i+1)/total_rows)
+                
+                # 4. Save Results & Dedupe
+                if results_batch:
+                    new_results = pd.DataFrame(results_batch)
+                    
+                    # Load existing if any
+                    if os.path.exists(DATA_FILE):
+                        existing_df = pd.read_csv(DATA_FILE)
+                        # Remove old results that match the new (id + trial) to overwrite them with latest
+                        # We use a composite key for filtering
+                        existing_df['key'] = existing_df['patient_id'].astype(str) + "_" + existing_df['trial_name']
+                        new_results['key'] = new_results['patient_id'].astype(str) + "_" + new_results['trial_name']
+                        
+                        # Authenticate: Keep rows in existing that are NOT in new
+                        final_df = pd.concat([
+                            existing_df[~existing_df['key'].isin(new_results['key'])],
+                            new_results
+                        ]).drop(columns=['key'])
+                    else:
+                        final_df = new_results
+                    
+                    final_df.to_csv(DATA_FILE, index=False)
+                    st.success(f"✅ Batch Complete! Processed {total_rows} patients. ({failures} failures).")
+                    st.info("Results saved to Dashboard. Go to 'Data Overview' tab to see them.")
+                    st.dataframe(new_results.head(), use_container_width=True)
+                else:
+                    st.warning("No results generated.")
 
 
 # --- TAB 4: MANAGE TRIALS ---
