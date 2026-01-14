@@ -38,14 +38,18 @@ def screen_patient(patient_data, trial_text, model_name='gemini-2.0-flash'):
     {json.dumps(patient_data, indent=2)}
 
     ## INSTRUCTIONS
-    1. Compare the patient data against criteria.
-    2. Do NOT explain step-by-step.
-    3. Output ONLY strict JSON.
+    1. Analyze the patient data against every single inclusion and exclusion criterion.
+    2. **CRITICAL:** Provide a VERY DETAILED, STEP-BY-STEP reasoning in the 'reason' field. 
+       - Quote specific patient values (e.g. "Patient age is 45").
+       - Quote specific trial limits (e.g. "Trial requires age > 50").
+       - Explain exactly why the match failed or succeeded.
+       - Do NOT be concise. Be verbose and clinical.
+    3. Output your final decision in strict JSON format.
     
     ## JSON OUTPUT FORMAT
     {{
       "decision": "ELIGIBLE" | "INELIGIBLE" | "UNCERTAIN",
-      "reason": "Overall summary of the decision.",
+      "reason": "STEP 1: Checking Age... [analysis]. STEP 2: Checking HbA1c... [analysis]. CONCLUSION: [summary]",
       "inclusion_criteria_met": ["list of strings"],
       "inclusion_criteria_not_met": ["list of strings"],
       "exclusion_criteria_met": ["list of strings (bad)"],
@@ -55,7 +59,10 @@ def screen_patient(patient_data, trial_text, model_name='gemini-2.0-flash'):
     """
     
     try:
-        response = model.generate_content(prompt)
+        # Set temperature to 0.0 for maximum determinism (Low Creativity, High Factuality)
+        generation_config = genai.types.GenerationConfig(temperature=0.0)
+        
+        response = model.generate_content(prompt, generation_config=generation_config)
         text_resp = response.text
         
         # 1. Advanced JSON Extraction
@@ -71,7 +78,7 @@ def screen_patient(patient_data, trial_text, model_name='gemini-2.0-flash'):
                 json_str = match.group(0)
         
         if not json_str:
-            return {"decision": "ERROR", "reason": "No JSON found in response", "missing_info": []}
+            return {"decision": "ERROR", "reason": "No JSON found in response. Raw: " + text_resp[:100], "missing_info": []}
 
         # 2. Parse & Validate Structure
         data = json.loads(json_str)
