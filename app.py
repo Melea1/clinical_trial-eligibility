@@ -104,12 +104,6 @@ with st.sidebar:
 
     st.markdown("---")
     st.caption(f"v1.0.5 • Found {len(trials_list)} protocols")
-    
-    # DEBUG UTILS
-    with st.expander("🕵️ Debug: File List", expanded=False):
-        st.write("Files in /trials:")
-        for t in trial_files_all:
-             st.code(t)
 
 
 # --- HEADER ---
